@@ -24,8 +24,8 @@ export function Footer() {
               <a href="#" className="hover:text-white transition-colors">
                 Terms of Service
               </a>
-              <a href="mailto:contact@rezervirai.com" className="hover:text-white transition-colors">
-                contact@rezervirai.com
+              <a href="mailto:rezervirai@googlegroups.com" className="hover:text-white transition-colors">
+                contact@rezervir.ai
               </a>
             </div>
 
