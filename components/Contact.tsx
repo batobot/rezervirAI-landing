@@ -11,7 +11,8 @@ export function Contact() {
     email: '',
     organization: '',
     message: '',
-    consent: false
+    consent: false,
+    botcheck: '' // Honeypot field for spam protection
   })
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
 
@@ -19,22 +20,65 @@ export function Contact() {
     e.preventDefault()
     setStatus('loading')
 
+    // Check honeypot field (spam protection)
+    if (formData.botcheck) {
+      // Bot detected, silently fail
+      setStatus('success')
+      setFormData({ name: '', email: '', organization: '', message: '', consent: false, botcheck: '' })
+      return
+    }
+
+    // Input sanitization - strip dangerous characters and limit length
+    const sanitizeInput = (str: string, maxLength: number = 500) => {
+      return str.replace(/<script[^>]*>.*?<\/script>/gi, '')
+                .replace(/<[^>]*>/g, '')
+                .trim()
+                .slice(0, maxLength)
+    }
+
+    // Email validation regex
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(formData.email)) {
+      setStatus('error')
+      return
+    }
+
+    // Web3Forms configuration with sanitized inputs
+    const web3FormsData = {
+      access_key: process.env.NEXT_PUBLIC_WEB3FORMS_ACCESS_KEY || 'YOUR_ACCESS_KEY_HERE',
+      subject: `New Contact from ${sanitizeInput(formData.name, 100)} - RezervirAI`,
+      from_name: 'RezervirAI Contact Form',
+      name: sanitizeInput(formData.name, 100),
+      email: sanitizeInput(formData.email, 254), // Max email length per RFC
+      organization: sanitizeInput(formData.organization, 200),
+      message: sanitizeInput(formData.message, 2000),
+      consent: formData.consent ? 'Yes' : 'No',
+      // Security features
+      botcheck: false,
+      replyto: sanitizeInput(formData.email, 254)
+    }
+
     try {
-      const response = await fetch('/api/contact', {
+      const response = await fetch('https://api.web3forms.com/submit', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(web3FormsData)
       })
 
       const data = await response.json()
 
-      if (data.ok) {
+      if (data.success) {
         setStatus('success')
-        setFormData({ name: '', email: '', organization: '', message: '', consent: false })
+        setFormData({ name: '', email: '', organization: '', message: '', consent: false, botcheck: '' })
       } else {
+        console.error('Form submission failed:', data)
         setStatus('error')
       }
     } catch (error) {
+      console.error('Form submission error:', error)
       setStatus('error')
     }
   }
@@ -62,11 +106,14 @@ export function Contact() {
                 <input
                   type="text"
                   id="name"
+                  name="name"
                   required
+                  maxLength={100}
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent"
                   placeholder="Your name"
+                  autoComplete="name"
                 />
               </div>
 
@@ -77,11 +124,15 @@ export function Contact() {
                 <input
                   type="email"
                   id="email"
+                  name="email"
                   required
+                  maxLength={254}
+                  pattern="[^\s@]+@[^\s@]+\.[^\s@]+"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent"
                   placeholder="your@email.com"
+                  autoComplete="email"
                 />
               </div>
 
@@ -92,11 +143,14 @@ export function Contact() {
                 <input
                   type="text"
                   id="organization"
+                  name="organization"
                   required
+                  maxLength={200}
                   value={formData.organization}
                   onChange={(e) => setFormData({ ...formData, organization: e.target.value })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent"
                   placeholder="Company or fund name"
+                  autoComplete="organization"
                 />
               </div>
 
@@ -106,13 +160,27 @@ export function Contact() {
                 </label>
                 <textarea
                   id="message"
+                  name="message"
                   rows={4}
+                  maxLength={2000}
                   value={formData.message}
                   onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent"
                   placeholder="Tell us about your interest in RezervirAI..."
                 />
               </div>
+
+              {/* Honeypot field - hidden from users but visible to bots */}
+              <input
+                type="text"
+                name="botcheck"
+                aria-hidden="true"
+                value={formData.botcheck}
+                onChange={(e) => setFormData({ ...formData, botcheck: e.target.value })}
+                style={{ display: 'none' }}
+                tabIndex={-1}
+                autoComplete="off"
+              />
 
               <div className="flex items-start">
                 <input
